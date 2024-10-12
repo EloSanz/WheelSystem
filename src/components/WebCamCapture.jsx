@@ -1,9 +1,8 @@
-import axios from 'axios';
 import React, { useRef, useState, useEffect } from 'react';
-//import 'bootstrap/dist/css/bootstrap.min.css'; // Import Bootstrap CSS
-import {Container, Row, Col, Card, Button, ListGroup} from 'react-bootstrap';
+import axios from 'axios';
+import { Container, Card, Button, Modal } from 'react-bootstrap';
 import 'bootstrap/dist/css/bootstrap.min.css';
-//import './style.css';
+import "./style-DONOTUSE.css";
 
 const WebCamCapture = () => {
   const webcamRef = useRef(null);
@@ -17,36 +16,36 @@ const WebCamCapture = () => {
   const [tagValue, setTagValue] = useState('');
   const [tagDisabled, setTagDisabled] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [showModal, setShowModal] = useState(false);
+
   const tagChange = (event) => {
-    setTagValue(event.target.value); // Update the state with the input's value
+    setTagValue(event.target.value);
   };
 
   const sendErrorToUser = (message) => {
-    setErrorMessage(message);  // Set the error message in state
+    setErrorMessage(message);
   };
 
-  const uploadVideo = async() =>{
+  const uploadVideo = async () => {
     setTagDisabled(false);
-
-    const videoBlob = new Blob(recordedChunks, {type:'video/webm'});
-
+    const videoBlob = new Blob(recordedChunks, { type: 'video/webm' });
     const formData = new FormData();
     formData.append('video', videoBlob, 'recorded-video.webm');
     formData.append('tagValue', tagValue);
-    try{
-      const response = await axios.post('/api/v2/train', formData, {
+    try {
+      await axios.post('/api/v2/train', formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
       });
-    } catch(error){
+    } catch (error) {
+      console.error('Error uploading video:', error);
+      sendErrorToUser('Failed to upload video.');
     }
-
     setRecordedChunks([]);
-  }
+  };
 
   const startRecording = () => {
-    // Check if webcamRef is set and contains a valid MediaStream
     if (webcamRef.current && webcamRef.current.srcObject instanceof MediaStream) {
       if (tagValue === '') {
         sendErrorToUser('Please input a tag for this video.');
@@ -57,73 +56,27 @@ const WebCamCapture = () => {
       } else {
         setTagDisabled(true);
       }
-  
+
       const stream = webcamRef.current.srcObject;
       const mediaRecorder = new MediaRecorder(stream);
-  
       mediaRecorderRef.current = mediaRecorder;
-  
+
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
           setRecordedChunks((prev) => [...prev, event.data]);
-
           const videoBlob = new Blob([event.data], { type: 'video/webm' });
           const videoURL = URL.createObjectURL(videoBlob);
           setVideoURL(videoURL);
-
         }
       };
-  
+
       mediaRecorder.start();
       setRecording(true);
       setTimeout(() => {
         stopRecording();
-      }, 12000); // Record for 3 seconds
+      }, 12000);
     } else {
-      sendErrorToUser('Webcam reference is not set or stream is invalid.');  // Notify user
-      console.log('webcamRef.current:', webcamRef.current);  // Log the webcamRef to inspect it
-      console.log('webcamRef.current.srcObject:', webcamRef.current ? webcamRef.current.srcObject : null);  // Log srcObject
-    }
-  };
-  
-  // Starting the webcam stream
-  const startWebcam = async () => {
-    
-    try {
-      // Request camera access with simplified constraints
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: 'environment' 
-          // facingMode: { exact: 'environment' }, // Force back camera
-        },
-        audio: false, // No audio
-      });
-  
-      // Log the stream for inspection
-      console.log('Stream:', stream);
-  
-      if (webcamRef.current) {
-        webcamRef.current.srcObject = stream; // Assign the stream to the video element
-      }
-  
-      setPermissionGranted(true);
-      setHasError(false);
-    } catch (error) {
-      console.error('Error accessing webcam:', error);
-      sendErrorToUser(`Error accessing webcam: ${error.message} (${error.name})`);
-  
-      // Check if camera is already in use
-      if (error.name === 'NotAllowedError') {
-        sendErrorToUser('Camera access denied. Please grant camera permissions.');
-      } else if (error.name === 'NotFoundError') {
-        sendErrorToUser('No camera device found.');
-      } else if (error.name === 'NotReadableError') {
-        sendErrorToUser('Camera is already in use by another application.');
-      } else {
-        sendErrorToUser('An unknown error occurred.');
-      }
-  
-      setHasError(true);
+      sendErrorToUser('Webcam reference is not set or stream is invalid.');
     }
   };
 
@@ -142,7 +95,7 @@ const WebCamCapture = () => {
         setImage(reader.result);
       };
       reader.readAsDataURL(file);
-      
+
       const formData = new FormData();
       formData.append("image", file);
 
@@ -153,58 +106,74 @@ const WebCamCapture = () => {
           }
         });
         console.log(response.data);
-        alert("Image saved successfully")
+        alert("Image saved successfully");
       } catch (error) {
         console.error('Error uploading the image:', error);
-        alert("Error uploading the image:", error);
+        alert("Error uploading the image");
       }
     } else {
       setHasError(true);
     }
   };
 
-  const handleClear = async (event) => {
-    try{
-      await axios.post('/api/v2/clear',[],{});
+  const handleClear = async () => {
+    try {
+      await axios.post('/api/v2/clear', [], {});
       alert('Cleared');
-    } catch(error){
+    } catch (error) {
       console.error('Error clearing model:', error);
       alert('Failed to clear the model.');
-
     }
-  }
+  };
 
+  const startWebcam = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' },
+        audio: false,
+      });
 
+      if (webcamRef.current) {
+        webcamRef.current.srcObject = stream;
+      }
+
+      setPermissionGranted(true);
+      setHasError(false);
+    } catch (error) {
+      console.error('Error accessing webcam:', error);
+      sendErrorToUser(`Error accessing webcam: ${error.message}`);
+      setHasError(true);
+    }
+  };
+
+  const handleGetWheelID = () => {
+    startWebcam();
+  };
+
+  const handleTrainWheel = () => {
+    startWebcam();
+    setShowModal(true);
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+  };
 
   useEffect(() => {
     if (navigator.permissions) {
       navigator.permissions
         .query({ name: 'camera' })
         .then((permissionStatus) => {
-          if (permissionStatus.state === 'denied' || permissionStatus.state === 'prompt') {
-            setHasError(true);
+          if (permissionStatus.state === 'granted') {
+            setPermissionGranted(true);
           } else {
-            startWebcam();
+            setHasError(true);
           }
-  
-          permissionStatus.onchange = () => {
-            if (permissionStatus.state === 'denied') {
-              setHasError(true);
-              setPermissionGranted(false);
-            } else {
-              setHasError(false);
-              setPermissionGranted(true);
-              startWebcam();
-            }
-          };
         })
         .catch((error) => {
           console.error('Error checking camera permissions:', error);
           setHasError(true);
         });
-    } else {
-      // Fallback: Directly request camera access
-      startWebcam();
     }
   }, []);
 
@@ -213,23 +182,15 @@ const WebCamCapture = () => {
       <Container>
         <Card className="mt-5">
           <Card.Body>
-            <Card.Header as="h2">Wheel Indentification System</Card.Header>
-            <br/>
-            <Card.Title as="h5">
-              <Button variant="primary"
-                onClick={startWebcam}
-              >
+            <Card.Header as="h2">Wheel Identification System</Card.Header>
+            <div className="mt-3 flex">
+              <Button variant="primary" onClick={startWebcam} className="me-2">
                 Get Wheel ID
               </Button>
-            </Card.Title>
-            <br/>
-            <Card.Title as="h5">
-              <Button variant="success"
-                onClick={startWebcam}
-              >
+              <Button variant="success" onClick={startWebcam}>
                 Train Wheel
               </Button>
-            </Card.Title>
+            </div>
           </Card.Body>
         </Card>
       </Container>
@@ -242,94 +203,84 @@ const WebCamCapture = () => {
         <div className="alert alert-danger" role="alert">
           {errorMessage}
         </div>
-       )}
-
-      <Container>
-        <Card className="mt-5">
-          <Card.Body>
-            <Card.Header as="h2">Wheel Indentification System</Card.Header>
-          </Card.Body>
-        </Card>
-      </Container>
-      {permissionGranted ? (
-        <>
-         <Container className="mt-3">
-            <Card>
-              <Card.Header>Get Wheel ID</Card.Header>
-              <Card.Body>
-                
-                {
-                  <input type="file" accept="image/*" capture="environment" onChange={handleCapture} />
-                }
-                {image && (
-                  <div>
-                    <p>Captured Image:</p>
-                    <img src={image} alt="Captured" style={{ width: '100%', maxHeight: '400px' }} />
-                  </div>
-                )}
-
-              </Card.Body>
-            </Card>
-
-          </Container>
-
-          <Container className="mt-3">
-            <Card>
-              <Card.Header as="h4" className="mt-1">Train Wheel</Card.Header>
-              <Card.Body>Add Wheel SKU <br></br>
-                <input className="m-2" type="text" onChange={tagChange} disabled={tagDisabled}></input> <br></br>
-                {recording ? (
-                  <Button>
-                    Stop Recording
-                  </Button>
-                ) : (
-                  <Button onClick={startRecording}>
-                    Start Recording
-                  </Button>
-                )}
-                {
-                  videoURL && (
-                    <Button onClick={uploadVideo}>
-                      Start Uploading
-                    </Button>
-                  )
-                }
-                {
-                  <Button onClick={handleClear}>
-                    Clear Model
-                  </Button>
-                }
-                {videoURL && (
-                  <div>
-                    <div className={'tag-record-div'}>
-
-                      <p>Recorded Video:</p>
-                    </div>
-                    <video src={videoURL} controls style={{ width: '100%', maxHeight: '400px' }} />
-                  </div>
-                )}
-                {
-                  recording ? (
-                    <video ref={webcamRef} className="mt-3" autoPlay playsInline style={{ width: '100%', maxHeight: '400px' }} />
-                  ):
-                  (
-                    <video ref={webcamRef} className="mt-3" autoPlay playsInline style={{ width: '100%', maxHeight: '400px' }} />
-                  )
-                }
-              </Card.Body>
-            </Card>
-          </Container>
-        </>
-      ) : (
-        <Button onClick={startWebcam}>
-          Enable Camera
-        </Button>
       )}
 
+      <Card className="mt-5">
+        <Card.Body>
+          <Card.Header as="h2">Wheel Identification System</Card.Header>
+          <div className="mt-3">
+            <Button variant="primary" onClick={handleGetWheelID} className="me-2">
+              Get Wheel ID
+            </Button>
+            <Button variant="success" onClick={handleTrainWheel}>
+              Train Wheel
+            </Button>
+          </div>
+        </Card.Body>
+      </Card>
+
+      <Modal show={showModal} onHide={closeModal} size="lg">
+        <Modal.Header closeButton>
+          <Modal.Title>Train Wheel</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <div>
+            <label>Add Wheel SKU:</label>
+            <input
+              className="form-control mb-2"
+              type="text"
+              onChange={tagChange}
+              disabled={tagDisabled}
+            />
+            {recording ? (
+              <Button onClick={stopRecording}>Stop Recording</Button>
+            ) : (
+              <Button onClick={startRecording}>Start Recording</Button>
+            )}
+            {videoURL && (
+              <Button onClick={uploadVideo} className="ms-2">
+                Start Uploading
+              </Button>
+            )}
+            <Button onClick={handleClear} className="ms-2">
+              Clear Model
+            </Button>
+          </div>
+          {videoURL && (
+            <div className="mt-3">
+              <p>Recorded Video:</p>
+              <video src={videoURL} controls style={{ width: '100%', maxHeight: '400px' }} />
+            </div>
+          )}
+          <video
+            ref={webcamRef}
+            className="mt-3"
+            autoPlay
+            playsInline
+            style={{ width: '100%', maxHeight: '400px' }}
+          />
+        </Modal.Body>
+      </Modal>
+
+      {permissionGranted && !showModal && (
+        <div className="mt-3">
+          <video
+            ref={webcamRef}
+            autoPlay
+            playsInline
+            style={{ width: '100%', maxHeight: '400px'}}
+          />
+          <input type="file" accept="image/*" capture="environment" onChange={handleCapture} className="mt-2" />
+          {image && (
+            <div className="mt-2">
+              <p>Captured Image:</p>
+              <img src={image} alt="Captured" style={{ width: '100%', maxHeight: '400px' }} />
+            </div>
+          )}
+        </div>
+      )}
     </Container>
   );
 };
-
-
 
 export default WebCamCapture;
