@@ -1,22 +1,22 @@
-import React, { useRef, useState, useEffect } from 'react';
-import axios from 'axios';
-import { Container, Card, Button, Modal } from 'react-bootstrap';
-import 'bootstrap/dist/css/bootstrap.min.css';
+import React, { useRef, useState, useEffect } from "react";
+import axios from "axios";
+import { Container, Card, Button, Modal } from "react-bootstrap";
+import "bootstrap/dist/css/bootstrap.min.css";
 import "./style-DONOTUSE.css";
 
 const WebCamCapture = () => {
   const webcamRef = useRef(null);
-  const [image, setImage] = useState(null);
   const [videoURL, setVideoURL] = useState(null);
   const [hasError, setHasError] = useState(false);
   const [permissionGranted, setPermissionGranted] = useState(false);
   const [recording, setRecording] = useState(false);
   const [recordedChunks, setRecordedChunks] = useState([]);
   const mediaRecorderRef = useRef(null);
-  const [tagValue, setTagValue] = useState('');
+  const [tagValue, setTagValue] = useState("");
   const [tagDisabled, setTagDisabled] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState("");
   const [showModal, setShowModal] = useState(false);
+  const [showErrorModal, setShowErrorModal] = useState(false); // for error modal
 
   const tagChange = (event) => {
     setTagValue(event.target.value);
@@ -28,29 +28,32 @@ const WebCamCapture = () => {
 
   const uploadVideo = async () => {
     setTagDisabled(false);
-    const videoBlob = new Blob(recordedChunks, { type: 'video/webm' });
+    const videoBlob = new Blob(recordedChunks, { type: "video/webm" });
     const formData = new FormData();
-    formData.append('video', videoBlob, 'recorded-video.webm');
-    formData.append('tagValue', tagValue);
+    formData.append("video", videoBlob, "recorded-video.webm");
+    formData.append("tagValue", tagValue);
     try {
-      await axios.post('/api/v2/train', formData, {
+      await axios.post("/api/v2/train", formData, {
         headers: {
-          'Content-Type': 'multipart/form-data'
-        }
+          "Content-Type": "multipart/form-data",
+        },
       });
     } catch (error) {
-      console.error('Error uploading video:', error);
-      sendErrorToUser('Failed to upload video.');
+      console.error("Error uploading video:", error);
+      sendErrorToUser("Failed to upload video.");
     }
     setRecordedChunks([]);
   };
 
   const startRecording = () => {
-    if (webcamRef.current && webcamRef.current.srcObject instanceof MediaStream) {
-      if (tagValue === '') {
-        sendErrorToUser('Please input a tag for this video.');
+    if (
+      webcamRef.current &&
+      webcamRef.current.srcObject instanceof MediaStream
+    ) {
+      if (tagValue === "") {
+        sendErrorToUser("Please input a tag for this video.");
         return;
-      } else if (!tagValue.startsWith('ALY') && !tagValue.startsWith('STL')) {
+      } else if (!tagValue.startsWith("ALY") && !tagValue.startsWith("STL")) {
         sendErrorToUser('Tag must start with "ALY" or "STL".');
         return;
       } else {
@@ -64,7 +67,7 @@ const WebCamCapture = () => {
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
           setRecordedChunks((prev) => [...prev, event.data]);
-          const videoBlob = new Blob([event.data], { type: 'video/webm' });
+          const videoBlob = new Blob([event.data], { type: "video/webm" });
           const videoURL = URL.createObjectURL(videoBlob);
           setVideoURL(videoURL);
         }
@@ -74,9 +77,9 @@ const WebCamCapture = () => {
       setRecording(true);
       setTimeout(() => {
         stopRecording();
-      }, 12000);
+      }, 10000);  // set the limit of recording video: 10000 = 10s
     } else {
-      sendErrorToUser('Webcam reference is not set or stream is invalid.');
+      sendErrorToUser("Webcam reference is not set or stream is invalid.");
     }
   };
 
@@ -87,49 +90,10 @@ const WebCamCapture = () => {
     }
   };
 
-  const handleCapture = async (event) => {
-    if (event.target.files && event.target.files[0]) {
-      const file = event.target.files[0];
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImage(reader.result);
-      };
-      reader.readAsDataURL(file);
-
-      const formData = new FormData();
-      formData.append("image", file);
-
-      try {
-        const response = await axios.post("/api/v1/predict", formData, {
-          headers: {
-            'Content-Type': 'multipart/form-data'
-          }
-        });
-        console.log(response.data);
-        alert("Image saved successfully");
-      } catch (error) {
-        console.error('Error uploading the image:', error);
-        alert("Error uploading the image");
-      }
-    } else {
-      setHasError(true);
-    }
-  };
-
-  const handleClear = async () => {
-    try {
-      await axios.post('/api/v2/clear', [], {});
-      alert('Cleared');
-    } catch (error) {
-      console.error('Error clearing model:', error);
-      alert('Failed to clear the model.');
-    }
-  };
-
   const startWebcam = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' },
+        video: { facingMode: "environment" },
         audio: false,
       });
 
@@ -140,7 +104,7 @@ const WebCamCapture = () => {
       setPermissionGranted(true);
       setHasError(false);
     } catch (error) {
-      console.error('Error accessing webcam:', error);
+      console.error("Error accessing webcam:", error);
       sendErrorToUser(`Error accessing webcam: ${error.message}`);
       setHasError(true);
     }
@@ -157,25 +121,37 @@ const WebCamCapture = () => {
 
   const closeModal = () => {
     setShowModal(false);
+    setErrorMessage(""); // clear the error when close the modal
+  };
+
+  const closeErrorModal = () => { // when the close error modal button is clicked
+    setShowErrorModal(false);
+    setErrorMessage(""); // clear the error when close the error modal
   };
 
   useEffect(() => {
     if (navigator.permissions) {
       navigator.permissions
-        .query({ name: 'camera' })
+        .query({ name: "camera" })
         .then((permissionStatus) => {
-          if (permissionStatus.state === 'granted') {
+          if (permissionStatus.state === "granted") {
             setPermissionGranted(true);
           } else {
             setHasError(true);
           }
         })
         .catch((error) => {
-          console.error('Error checking camera permissions:', error);
+          console.error("Error checking camera permissions:", error);
           setHasError(true);
         });
     }
   }, []);
+
+  useEffect(() => { // set the showErrorModal variable when the showModal or errorMessage button is clicked
+    if (errorMessage !== "" && showModal) {
+      setShowErrorModal(true);
+    }
+  }, [showModal, errorMessage]);
 
   if (hasError) {
     return (
@@ -199,17 +175,22 @@ const WebCamCapture = () => {
 
   return (
     <Container>
-      {errorMessage && (
-        <div className="alert alert-danger" role="alert">
-          {errorMessage}
-        </div>
-      )}
+      {errorMessage &&
+        !showModal && ( // show the error when showModal is false
+          <div className="alert alert-danger" role="alert">
+            {errorMessage}
+          </div>
+        )}
 
       <Card className="mt-5">
         <Card.Body>
           <Card.Header as="h2">Wheel Identification System</Card.Header>
           <div className="mt-3">
-            <Button variant="primary" onClick={handleGetWheelID} className="me-2">
+            <Button
+              variant="primary"
+              onClick={handleGetWheelID}
+              className="me-2"
+            >
               Get Wheel ID
             </Button>
             <Button variant="success" onClick={handleTrainWheel}>
@@ -242,23 +223,52 @@ const WebCamCapture = () => {
                 Start Uploading
               </Button>
             )}
-            <Button onClick={handleClear} className="ms-2">
+            {/* <Button onClick={handleClear} className="ms-2"> // remove the clear model button
               Clear Model
-            </Button>
+            </Button> */}
           </div>
           {videoURL && (
             <div className="mt-3">
               <p>Recorded Video:</p>
-              <video src={videoURL} controls style={{ width: '100%', maxHeight: '400px' }} />
+              <video
+                src={videoURL}
+                controls
+                style={{ width: "100%", maxHeight: "400px" }}
+              />
             </div>
           )}
-          <video
-            ref={webcamRef}
-            className="mt-3"
-            autoPlay
-            playsInline
-            style={{ width: '100%', maxHeight: '400px' }}
-          />
+          <div style={{ position: 'relative' }}>
+            <video
+              ref={webcamRef}
+              autoPlay
+              playsInline
+              style={{ width: '100%', maxHeight: '400px'}}
+            />
+            {/* Overlay circle with green border */}
+            <div className="overlay-circle" style={{ 
+              border: `5px solid ${tagDisabled ? "green" : "red"}`,
+              backgroundColor: tagDisabled ? "rgba(0, 0, 0, 0)" : "rgba(255, 0, 0, 0.5)"
+            }}>
+              {tagDisabled ? "" : <div className='overlay-text'>Move closer until the object fits within the circle</div>}
+            </div>
+          </div>
+        </Modal.Body>
+      </Modal>
+
+      <Modal //======================== error modal part
+        show={showErrorModal}
+        onHide={closeErrorModal}
+        style={{ marginTop: "100px" }}
+      >
+        <Modal.Header closeButton>
+          <Modal.Title style={{ color: "#ffaeb5" }}>Error</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {errorMessage && (
+            <div className="alert alert-danger" role="alert">
+              {errorMessage}
+            </div>
+          )}
         </Modal.Body>
       </Modal>
 
@@ -268,15 +278,8 @@ const WebCamCapture = () => {
             ref={webcamRef}
             autoPlay
             playsInline
-            style={{ width: '100%', maxHeight: '400px'}}
+            style={{ width: "100%", maxHeight: "400px" }}
           />
-          <input type="file" accept="image/*" capture="environment" onChange={handleCapture} className="mt-2" />
-          {image && (
-            <div className="mt-2">
-              <p>Captured Image:</p>
-              <img src={image} alt="Captured" style={{ width: '100%', maxHeight: '400px' }} />
-            </div>
-          )}
         </div>
       )}
     </Container>
